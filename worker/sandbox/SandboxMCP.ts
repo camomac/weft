@@ -1,7 +1,7 @@
 /**
  * SandboxMCP - Hosted MCP wrapper for Cloudflare Sandbox operations
  *
- * Enables workflows to use Claude Code and git operations as MCP tools,
+ * Enables workflows to use OpenCode and git operations as MCP tools,
  * making them composable with other MCP servers like Gmail, GoogleDocs.
  *
  * Credentials (GitHub token, Anthropic API key) are automatically injected -
@@ -68,7 +68,7 @@ const GIT_ADD_EXCLUSIONS = [
 
 export class SandboxMCPServer extends HostedMCPServer {
   readonly name = 'Sandbox';
-  readonly description = 'Execute Claude Code and git operations in an isolated sandbox environment';
+  readonly description = 'Execute OpenCode and git operations in an isolated sandbox environment';
 
   private sandboxBinding: DurableObjectNamespace<Sandbox>;
   private credentials: SandboxCredentials;
@@ -102,8 +102,8 @@ export class SandboxMCPServer extends HostedMCPServer {
         case 'createSession':
           return this.createSession(parseToolArgs(sandboxTools.createSession.input, args));
 
-        case 'runClaude':
-          return this.runClaude(parseToolArgs(sandboxTools.runClaude.input, args));
+        case 'runOpenCode':
+          return this.runOpenCode(parseToolArgs(sandboxTools.runOpenCode.input, args));
 
         case 'getDiff':
           return this.getDiff(parseToolArgs(sandboxTools.getDiff.input, args));
@@ -287,7 +287,7 @@ export class SandboxMCPServer extends HostedMCPServer {
     throw new Error(`Fork ${forkOwner}/${forkRepo} not ready after ${maxWaitMs}ms`);
   }
 
-  private async runClaude(args: {
+  private async runOpenCode(args: {
     sessionId: string;
     task: string;
     context?: string;
@@ -321,19 +321,19 @@ export class SandboxMCPServer extends HostedMCPServer {
     // Escape the system prompt for shell
     const escapedSystemPrompt = systemPrompt.replace(/'/g, "'\\''");
 
-    // Run Claude directly using execStream for better reliability
-    // First check if claude is available
-    const checkCmd = `command -v claude && echo "claude-available" || echo "claude-not-found"`;
+    // Run OpenCode directly using execStream for better reliability
+    // First check if opencode is available
+    const checkCmd = `command -v opencode && echo "opencode-available" || echo "opencode-not-found"`;
     const checkStream = await sandbox.execStream(checkCmd);
-    let claudeAvailable = false;
+    let opencodeAvailable = false;
     for await (const event of parseSSEStream<ExecEvent>(checkStream)) {
-      if (event.type === 'stdout' && event.data?.includes('claude-available')) {
-        claudeAvailable = true;
+      if (event.type === 'stdout' && event.data?.includes('opencode-available')) {
+        opencodeAvailable = true;
       }
       if (event.type === 'complete') break;
     }
 
-    if (!claudeAvailable) {
+    if (!opencodeAvailable) {
       // List what IS available to help debug
       const lsStream = await sandbox.execStream('ls -la /usr/local/bin 2>/dev/null; echo "---"; ls -la /usr/bin 2>/dev/null | head -20');
       let lsOutput = '';
@@ -341,27 +341,29 @@ export class SandboxMCPServer extends HostedMCPServer {
         if (event.type === 'stdout') lsOutput += event.data;
         if (event.type === 'complete') break;
       }
-      return this.errorContent(`Claude CLI is not installed in the sandbox. Available in /usr/local/bin and /usr/bin:\n${lsOutput}`);
+      return this.errorContent(`OpenCode CLI is not installed in the sandbox. Available in /usr/local/bin and /usr/bin:\n${lsOutput}`);
     }
 
-    // Run Claude Code using the same approach as ExecutionWorkflow
-    // Uses --permission-mode acceptEdits instead of --dangerously-skip-permissions
-    // (the latter doesn't work when running as root in the sandbox)
-    const claudeScript = `#!/bin/bash
+    // Write system prompt to AGENTS.md for OpenCode to pick up
+    const agentsMdContent = `# Task Context\n\n${systemPrompt}`;
+    await sandbox.writeFile(`${session.workDir}/AGENTS.md`, agentsMdContent);
+
+    // Run OpenCode using --yes for non-interactive mode
+    const opencodeScript = `#!/bin/bash
 cd ${session.workDir}
 export ANTHROPIC_API_KEY="${this.credentials.anthropicApiKey}"
-claude --append-system-prompt "${escapedSystemPrompt}" -p "$(cat /tmp/task.md)" --permission-mode acceptEdits > /tmp/claude-output.txt 2>&1
-echo "---CLAUDE_EXIT_CODE:$?---" >> /tmp/claude-output.txt
+opencode run "$(cat /tmp/task.md)" --yes > /tmp/opencode-output.txt 2>&1
+echo "---OPENCODE_EXIT_CODE:$?---" >> /tmp/opencode-output.txt
 `;
 
-    await sandbox.writeFile('/tmp/run-claude.sh', claudeScript);
+    await sandbox.writeFile('/tmp/run-opencode.sh', opencodeScript);
 
-    logger.sandbox.info('Running Claude', { workDir: session.workDir });
+    logger.sandbox.info('Running OpenCode', { workDir: session.workDir });
 
-    // Start Claude Code as a background process
-    const claudeProcess = await sandbox.startProcess('bash /tmp/run-claude.sh');
+    // Start OpenCode as a background process
+    const opencodeProcess = await sandbox.startProcess('bash /tmp/run-opencode.sh');
 
-    // Poll for completion (Claude can take several minutes)
+    // Poll for completion (OpenCode can take several minutes)
     const timeoutSeconds = args.timeout;
     let complete = false;
     let attempts = 0;
@@ -373,14 +375,14 @@ echo "---CLAUDE_EXIT_CODE:$?---" >> /tmp/claude-output.txt
       attempts++;
 
       try {
-        const outputFile = await sandbox.readFile('/tmp/claude-output.txt');
-        if (outputFile.content.includes('---CLAUDE_EXIT_CODE:')) {
+        const outputFile = await sandbox.readFile('/tmp/opencode-output.txt');
+        if (outputFile.content.includes('---OPENCODE_EXIT_CODE:')) {
           complete = true;
           output = outputFile.content;
 
-          const exitCodeMatch = output.match(/---CLAUDE_EXIT_CODE:(\d+)---/);
+          const exitCodeMatch = output.match(/---OPENCODE_EXIT_CODE:(\d+)---/);
           exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : 1;
-          output = output.replace(/---CLAUDE_EXIT_CODE:\d+---/, '').trim();
+          output = output.replace(/---OPENCODE_EXIT_CODE:\d+---/, '').trim();
         }
       } catch {
         // File doesn't exist yet
@@ -389,21 +391,21 @@ echo "---CLAUDE_EXIT_CODE:$?---" >> /tmp/claude-output.txt
 
     // Kill process if still running
     try {
-      await sandbox.killProcess(claudeProcess.id);
+      await sandbox.killProcess(opencodeProcess.id);
     } catch {
       // Process may have already exited
     }
 
-    logger.sandbox.info('Claude exited', { exitCode, outputLength: output.length });
-    logger.sandbox.debug('Claude output preview', { output: output.slice(0, 500) });
+    logger.sandbox.info('OpenCode exited', { exitCode, outputLength: output.length });
+    logger.sandbox.debug('OpenCode output preview', { output: output.slice(0, 500) });
 
     if (!complete) {
-      return this.errorContent(`Claude Code timed out after ${timeoutSeconds} seconds`);
+      return this.errorContent(`OpenCode timed out after ${timeoutSeconds} seconds`);
     }
 
     // Check for errors
     if (exitCode !== 0) {
-      return this.errorContent(`Claude CLI failed with exit code ${exitCode}: ${output.slice(0, 1000)}`);
+      return this.errorContent(`OpenCode CLI failed with exit code ${exitCode}: ${output.slice(0, 1000)}`);
     }
 
     // Get list of modified files

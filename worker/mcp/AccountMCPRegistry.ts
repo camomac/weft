@@ -258,9 +258,9 @@ For ANY task requiring code changes, you MUST use Sandbox. Here's the flow:
    \`\`\`
    This returns a sessionId you'll use for all subsequent calls.
 
-2. **Make changes** - Use runClaude to let Claude Code make the edits:
+2. **Make changes** - Use runOpenCode to let OpenCode make the edits:
    \`\`\`
-   Sandbox__runClaude({ sessionId: "...", task: "description of what to change" })
+   Sandbox__runOpenCode({ sessionId: "...", task: "description of what to change" })
    \`\`\`
 
 3. **Get the diff** - REQUIRED before approval:

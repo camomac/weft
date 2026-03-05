@@ -17,12 +17,12 @@ const createSessionOutput = z.object({
   workDir: z.string().describe('Full working directory path'),
 });
 
-const runClaudeOutput = z.object({
-  success: z.boolean().describe('Whether Claude completed successfully'),
-  output: z.string().describe("Claude's stdout output"),
+const runOpenCodeOutput = z.object({
+  success: z.boolean().describe('Whether OpenCode completed successfully'),
+  output: z.string().describe("OpenCode's stdout output"),
   filesModified: z.array(z.string())
     .describe('List of files that were modified'),
-  exitCode: z.number().describe('Exit code from Claude CLI'),
+  exitCode: z.number().describe('Exit code from OpenCode CLI'),
 });
 
 const diffStatsOutput = z.object({
@@ -94,11 +94,11 @@ export const sandboxTools = defineTools({
     disabledInScheduledRuns: true,
   },
 
-  runClaude: {
-    description: 'Execute Claude Code CLI with a task. Returns output and list of modified files. Claude will make changes but NOT commit them.',
+  runOpenCode: {
+    description: 'Execute OpenCode CLI with a task. Returns output and list of modified files. OpenCode will make changes but NOT commit them.',
     input: z.object({
       sessionId: commonSchemas.sessionId,
-      task: z.string().max(50000).describe('Task description for Claude to execute'),
+      task: z.string().max(50000).describe('Task description for OpenCode to execute'),
       context: z.string().max(50000).optional()
         .describe('Additional context from previous workflow steps'),
       systemPrompt: z.string().max(10000).optional()
@@ -106,7 +106,7 @@ export const sandboxTools = defineTools({
       timeout: z.coerce.number().int().min(30).max(1800).default(600)
         .describe('Timeout in seconds (default: 600)'),
     }),
-    output: runClaudeOutput,
+    output: runOpenCodeOutput,
     disabledInScheduledRuns: true,
   },
 

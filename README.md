@@ -15,7 +15,7 @@ Run as many agents in parallel as you want. Schedule recurring tasks to run dail
 - Google Docs (create, edit)
 - Google Sheets (create, update)
 - GitHub (issues, PRs, code)
-- [Cloudflare Sandbox](https://developers.cloudflare.com/sandbox/) (isolated containers for code execution and coding agents)
+- [Cloudflare Sandbox](https://developers.cloudflare.com/sandbox/) (isolated containers for code execution with [OpenCode](https://opencode.ai))
 - [Remote MCP servers](https://modelcontextprotocol.io/) (bring your own tools)
 
 **Self-hosted and private.** Deploy to your own Cloudflare account. Your data stays in your account.

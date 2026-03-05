@@ -216,8 +216,8 @@ interface SandboxSession {
   branch?: string;
 }
 
-/** Claude Code execution result */
-interface ClaudeRunResult {
+/** OpenCode execution result */
+interface OpenCodeRunResult {
   success: boolean;
   output: string;
   filesModified: string[];
@@ -255,13 +255,13 @@ declare const Sandbox: {
     workDir?: string;  // Directory name (default: repo)
   }): Promise<MCPToolResult<SandboxSession>>;
 
-  /** Execute Claude Code CLI with a task */
-  runClaude(params: {
+  /** Execute OpenCode CLI with a task */
+  runOpenCode(params: {
     sessionId: string;
     task: string;        // Task description
     context?: string;    // Additional context from previous steps
     timeout?: number;    // Timeout in seconds (default: 600)
-  }): Promise<MCPToolResult<ClaudeRunResult>>;
+  }): Promise<MCPToolResult<OpenCodeRunResult>>;
 
   /** Get git diff of uncommitted changes */
   getDiff(params: {
