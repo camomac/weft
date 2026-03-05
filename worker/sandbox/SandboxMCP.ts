@@ -318,9 +318,6 @@ export class SandboxMCPServer extends HostedMCPServer {
     const systemPrompt = args.systemPrompt ||
       'You are an automatic feature-implementer/bug-fixer. Apply all necessary changes to achieve the user request. Do NOT commit changes - the workflow will handle that.';
 
-    // Escape the system prompt for shell
-    const escapedSystemPrompt = systemPrompt.replace(/'/g, "'\\''");
-
     // Run OpenCode directly using execStream for better reliability
     // First check if opencode is available
     const checkCmd = `command -v opencode && echo "opencode-available" || echo "opencode-not-found"`;
