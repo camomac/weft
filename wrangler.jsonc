@@ -52,11 +52,15 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["BoardDO", "Sandbox"],
+      "new_sqlite_classes": ["BoardDO"],
     },
     {
       "tag": "v2",
       "new_sqlite_classes": ["UserDO"],
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": ["Sandbox"],
     },
   ],
   "env": {
